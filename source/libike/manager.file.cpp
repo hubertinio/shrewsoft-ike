@@ -200,141 +200,146 @@ bool _CONFIG_MANAGER::file_vpn_load( CONFIG & config )
 
 
 
-bool _CONFIG_MANAGER::file_vpn_load( CONFIG & config, const char * path, bool save_update /*=true*/ )
+bool _CONFIG_MANAGER::file_vpn_load(CONFIG &config, const char *path, bool save_update /*=true*/)
 {
-
 #ifdef WIN32
-
-	FILE * fp;
-	if( fopen_s( &fp, path, "r" ) )
-		return false;
-
+    FILE *fp;
+    if (fopen_s(&fp, path, "r"))
+    {
+        fprintf(stderr, "Error: Unable to open file '%s' on Windows.\n", path);
+        return false;
+ }
 #else
-
-	FILE * fp = fopen( path, "r" );
-	if( fp == NULL ){
-		return false;
-	}
-
+    FILE *fp = fopen(path, "r");
+    if (fp == NULL)
+    {
+        fprintf(stderr, "Error: Unable to open file '%s'.\n", path);
+        return false;
+    }
 #endif
 
-	while( true )
-	{
-		char	next;
-		char	type;
-		BDATA	name;
-		BDATA	data;
+    while (true)
+    {
+        char next;
+        char type;
+        BDATA name;
+        BDATA data;
 
-		//
-		// get value type
-		//
+        // Get value type
+        type = fgetc(fp);
 
-		type = fgetc( fp );
+        if (type == ' ' || type == '\r')
+            continue;
 
-		if( ( type == ' ' ) ||
-			( type == '\r' ) )
-			continue;
+        if (type == '\n' || type == EOF)
+        {
+            if (type == EOF)
+                fprintf(stderr, "Info: Reached end of file.\n");
+            else
+                fprintf(stderr, "Info: Encountered empty line.\n");
+            break;
+        }
 
-		if( ( type == '\n' ) ||
-			( type == EOF ) )
-			break;
+        // Get delimiter
+        if (fgetc(fp) != ':')
+        {
+            fprintf(stderr, "Error: Missing delimiter ':' after type '%c'.\n", type);
+            goto parse_fail;
+        }
 
-		//
-		// get delim
-		//
+        // Get value name
+        while (true)
+        {
+            next = fgetc(fp);
 
-		if( fgetc( fp ) != ':' )
-			goto parse_fail;
+            if (next == ':' || next == '\n' || next == EOF)
+                break;
 
-		//
-		// get value name
-		//
+            name.add(next, 1);
+        }
 
-		while( true )
-		{
-			next = fgetc( fp );
+        if (!name.size())
+        {
+            fprintf(stderr, "Error: Value name is empty for type '%c'.\n", type);
+            goto parse_fail;
+        }
 
-			if( ( next == ':' ) ||
-				( next == '\n' ) ||
-				( next == EOF ) )
-				break;
+        name.asciiz();
 
-			name.add( next, 1 );
-		}
+        // Check delimiter
+        if (next != ':')
+        {
+            fprintf(stderr, "Error: Missing ':' after value name '%s'.\n", name.text());
+            goto parse_fail;
+        }
 
-		if( !name.size() )
-			goto parse_fail;
+        // Get value data
+        while (true)
+        {
+            next = fgetc(fp);
 
-		name.asciiz();
+            if (next == '\r')
+                continue;
 
-		//
-		// check delim
-		//
+            if (next == '\n' || next == EOF)
+                break;
 
-		if( next != ':' )
-			goto parse_fail;
+            data.add(next, 1);
+        }
 
-		//
-		// get value data
-		//
+        data.asciiz();
 
-		while( true )
-		{
-			next = fgetc( fp );
+        // Debugging output for the type, name, and data
+        fprintf(stderr, "Debug: Parsed entry - Type: '%c', Name: '%s', Data: '%s'\n",
+                type, name.text(), data.text());
 
-			if( next == '\r' )
-				continue;
+        switch (type)
+        {
+            case 's':
+            {
+                config.add_string(name.text(), data.text(), data.size());
+                break;
+            }
 
-			if( ( next == '\n' ) ||
-				( next == EOF ) )
-				break;
+            case 'n':
+            {
+                config.set_number(name.text(), atol(data.text()));
+                break;
+            }
 
-			data.add( next, 1 );
-		}
+            case 'b':
+            {
+                BDATA b64;
+                b64 = data;
+                if (!b64.base64_decode())  // Assuming base64_decode returns success/failure
+                {
+                    fprintf(stderr, "Error: Failed to decode base64 data for name '%s'.\n", name.text());
+                    goto parse_fail;
+                }
+                config.set_binary(name.text(), b64);
+                break;
+            }
 
-		data.asciiz();
+            default:
+            {
+                fprintf(stderr, "Error: Unknown type '%c' encountered.\n", type);
+                goto parse_fail;
+            }
+        }
+    }
 
-		switch( type )
-		{
-			case 's':
-			{
-				config.add_string( name.text(), data.text(), data.size() );
-				break;
-			}
+    fclose(fp);
 
-			case 'n':
-			{
-				config.set_number( name.text(), atol( data.text() ) );
-				break;
-			}
+    // Automatically update configs
+    if (update_config(config) && save_update)
+        file_vpn_save(config, path);
 
-			case 'b':
-			{
-				BDATA b64;
-				b64 = data;
-				b64.base64_decode();
-				config.set_binary( name.text(), b64 );
-				break;
-			}
-		}
-	}
+    return true;
 
-	fclose( fp );
-
-	//
-	// automatically update configs
-	//
-
-	if( update_config( config ) && save_update )
-		file_vpn_save( config, path );
-
-	return true;
-
-	parse_fail:
-
-	fclose( fp );
-
-	return false;
+parse_fail:
+    fprintf(stderr, "Error: Parsing failed.\n");
+    fclose(fp);
+    return false;
 }
 
 
