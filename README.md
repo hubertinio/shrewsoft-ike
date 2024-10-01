@@ -1,70 +1,44 @@
 
-### Shrewsoft IKE
+### Installation 
 
-aggiornato per ubuntu 22
+Without GUI.
 
-
-
-compile+install
 ```
-sudo apt install \
-build-essential \
-libssl-dev      \
-libedit-dev     \
-*qt5*dev        \
-cmake           \
-bison           \
-flex
+sudo apt install build-essential libssl-dev libedit-dev *qt5*dev cmake bison flex
 
-cmake -DCMAKE_INSTALL_PREFIX=/usr -DQTGUI=YES -DETCDIR=/etc -DNATT=YES .
+cmake -DCMAKE_INSTALL_PREFIX=/usr -DQTGUI=NO -DETCDIR=/etc -DNATT=YES .
 
 make && sudo make install
 ```
 
-iked, il servizio ipsec vero e proprio, deve essere attivo perché ikec/qikea/qikec possano funzionare  
+#### Network Manager support (optional)
 
-```
-sudo pkill -f iked
-#sudo iked -F -d 6    # debug
-sudo iked	          # normale (demone)
-
-```
-
-il file script/linux/nm/ike-routes è uno script per network manager    
-fa si di installare automaticamente delle rotte quando il tunnel sale  
-i privati andranno sul tunnel, i pubblici useranno il normale routing di casa  
-va copiato in /etc/NetworkManager/dispatcher.d/  
-*opzionale, le rotte si possono configurare via qikea*  
-
+The script/linux/nm/ike-routes file is a script for network manager makes it automatically install routes when the tunnel goes up privates will go on the tunnel, publics will use normal home routing it should be copied into.
 
 ```
 sudo cp script/linux/nm/ike-routes /etc/NetworkManager/dispatcher.d/
 ```
 
 
+### Configuration 
 
-
-le due conf usate in tim sono sotto sites  
-cmq si possono creare con qikea
+Your sites settings. Modify to your needs.
 
 ```
 mkdir -p ~/.ike/sites
 cp -f sites/* ~/.ike/sites
 ```
 
+### Usage 
 
-le connessioni possono essere aperte anche via cli/script, non solo via gui   
-in questo caso si usa ikec, che si può lanciare in modo interattivo e non  
+__config__ - only filename from `~/.ike/sites`
 
-interattivo
 ```
-ikec -a -r EXTDACON@dacvpn -u TELECOMITALIA\00519575
-```
-poi verrà chiesta la pass (l'OTP di TIM Secure APP)
+#!/bin/bash
 
+sudo iked
 
-non interattivo, si da tutto da cli ed il processo termina alla disconnessione (oppure al ctrl-c)    
-```
-ikec -n -a -r EXTDACON@dacvpn -u TELECOMITALIA\00519575 -p 12345 (l'OTP di TIM Secure APP)
+ikec -r [config] -a -u [username] -p [pass]
+
 ```
 
