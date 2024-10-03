@@ -36,9 +36,11 @@ __config__ - only filename from `~/.ike/sites`
 ```
 #!/bin/bash
 
+read -sp "Enter your password: " password
+echo
+
 sudo iked
 
-ikec -r [config] -a -u [username] -p [pass]
-
+ikec -r [config] -a -u [username] -p "$password" && send-notify "tunnel disabled"
 ```
 
